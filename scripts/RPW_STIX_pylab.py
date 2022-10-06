@@ -52,6 +52,9 @@ from spacepy import pycdf
 
 #date
 std_date_fmt = '%d-%b-%Y %H:%M:%S'
+simple_date_fmt='%Y-%m-%d'
+numeric_date_fmt='%Y-%m-%d %H:%M:%S'
+fits_date_fmt="%Y%m%dT%H%M%S"
 speed_c_kms = 299792.458
 Rs_per_AU = 215.032
 km_per_Rs = 695700.
@@ -70,6 +73,9 @@ rpw_suggested_freqs_idx=[ 437,441,442,448,453,458,465,470,
 rpw_idx_hfr=436
 rpw_suggested_indexes = np.array(rpw_suggested_freqs_idx)-rpw_idx_hfr
 
+#display_freqs=[0,100,500,1000,2500,5000,10000,15000]
+display_freqs=[0,100,500,1000,2000,4000,8000,12000,16000]
+
 
 
 ## FILE AVAILABILITY  (CHECK)
@@ -85,8 +91,8 @@ def stix_get_all_bkg_files(path,verbose=True):
                 continue
             #append the file name to the list
             obstime = file.split("_")[3].split("-")[0]
-            date = dt.datetime.strptime(obstime,"%Y%m%dT%H%M%S")
-            entry= "["+date.strftime("%Y-%m-%d")+"] "+file
+            date = dt.datetime.strptime(obstime,fits_date_fmt)
+            entry= "["+date.strftime(simple_date_fmt)+"] "+file
             filelist.append(entry)
 
 
@@ -96,10 +102,10 @@ def stix_get_all_bkg_files(path,verbose=True):
     for name in filelist:
         print(name)
 
-def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S",suggestions=1):
+def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt=simple_date_fmt,suggestions=1):
     date = dt.datetime.strptime(date,dt_fmt)
     filelist = {}
-    file_dt_fmt="%Y%m%dT%H%M%S"
+    #file_dt_fmt="%Y%m%dT%H%M%S"
 
     for root, dirs, files in os.walk(rootpath):
         if(not"_BKG" in root):
@@ -109,7 +115,7 @@ def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S",sugg
                 continue
             #append the file name to the list
             obstime = file.split("_")[3].split("-")[0]
-            dateobs = dt.datetime.strptime(obstime,file_dt_fmt)
+            dateobs = dt.datetime.strptime(obstime,fits_date_fmt)
             
             tdelta = (date-dateobs).days
             filelist[os.path.join(root,file)] = np.abs(tdelta)
@@ -123,11 +129,11 @@ def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S",sugg
 def stix_suggest_bkg_file_for_file(file,rootpath,suggestions=1):
     obstime = file.split("_")[3].split("-")[0]
     fmtd = "%Y%m%dT%H%M%S"
-    return stix_suggest_bkg_file(obstime,rootpath,dt_fmt=fmtd,suggestions=suggestions)
+    return stix_suggest_bkg_file(obstime,rootpath,dt_fmt=fits_date_fmt,suggestions=suggestions)
 
 
 
-def stix_data_in_interval_exists(date_range,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S"):
+def stix_data_in_interval_exists(date_range,rootpath,dt_fmt=numeric_date_fmt):
     
     date_range = [dt.datetime.strptime(x,dt_fmt) for x in date_range]
     filelist = {
@@ -144,7 +150,7 @@ def stix_data_in_interval_exists(date_range,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S")
             
             obstime_1 = file.split("_")[3].split("-")[0]
             obstime_2 = file.split("_")[3].split("-")[1]
-            dateinterv = [dt.datetime.strptime(x,"%Y%m%dT%H%M%S") for x in [obstime_1,obstime_2]]
+            dateinterv = [dt.datetime.strptime(x,fits_date_fmt) for x in [obstime_1,obstime_2]]
             
             date1_in_range = date_range[0]>=dateinterv[0] and date_range[0]<=dateinterv[1]
             date2_in_range = date_range[1]>=dateinterv[0] and date_range[1]<=dateinterv[1]
@@ -199,7 +205,7 @@ def rpw_check_date_availability(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S"):
 
 
 
-def check_combined_availability(date_range,rootpath_stix,rootpath_rpw,dt_fmt="%Y-%m-%d %H:%M:%S"):
+def check_combined_availability(date_range,rootpath_stix,rootpath_rpw,dt_fmt=numeric_date_fmt):
     stix_info = stix_check_interval_availability(date_range,rootpath_stix,dt_fmt)
     rpw_info=None
     if(date_range[0].split()[0]==date_range[1].split()[0]):
@@ -529,7 +535,7 @@ def rpw_plot_psd(psd,logscale=True,colorbar=True,cmap="jet",t_format="%H:%M:%S",
     
     ax.set_yscale('log')
     ax.set_yticks([], minor=True)
-    ax.set_yticks([x  for x in [0,100,500,1000,2500,5000,10000,15000] if np.logical_and(x<=f[-1],x>=f[0])])
+    ax.set_yticks([x  for x in display_freqs if np.logical_and(x<=f[-1],x>=f[0])])
     #ax.get_yaxis().set_major_formatter(ticker.ScalarFormatter())
     #plt.ticklabel_format(axis='y', style='sci',scilimits=(0,0))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y,pos: ('{{:.{:1d}f}}'.format(int(np.maximum(-np.log10(y/1000.),1)))).format(y/1000.)))

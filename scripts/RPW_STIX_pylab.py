@@ -43,7 +43,9 @@ from astropy.time.core import Time, TimeDelta
 from astropy.table import Table, vstack, hstack
 import astropy.units as u
 
-os.environ["CDF_LIB"] = "~/Documents/cdfpy38/src/lib/"
+#os.environ["CDF_LIB"] = "~/Documents/cdfpy38/src/lib/"
+#os.environ["CDF_LIB"] = "~/Documents/cdf38/src/lib/"
+os.environ["CDF_LIB"] = "/home/dpaipa/Documents/cdf38/src/lib/"
 from spacepy import pycdf
 
 
@@ -58,23 +60,24 @@ fits_date_fmt="%Y%m%dT%H%M%S"
 speed_c_kms = 299792.458
 Rs_per_AU = 215.032
 km_per_Rs = 695700.
+WmHz_per_sfu=1e-22
 
 # rpw indexes
-#rpw_suggested_freqs_idx =[437,441,442,448,453,458,465,470,477,482,                     
-#                      493,499,511,519,526,533,
-#                      538,545,552,559,566,576,588,592,600,612,
-#                      656,678,696,716,734,741,750,755,505,629,649,
-#                      673,703,727]629,656,673
-rpw_suggested_freqs_idx=[ 437,441,442,448,453,458,465,470,
-                         477,482,493,499,511,519,526,533,
-                         538,545,552,559,566,600,
-                         612,678,696,#,576,588,592,649,629,656,673
-                         703,716,727,734,741,750,755]
+rpw_suggested_freqs_idx =[437,441,442,448,453,458,465,470,477,482,                     
+                      493,499,511,519,526,533,
+                      538,545,552,559,566,576,588,592,600,612,
+                      656,678,696,716,734,741,750,755,505,629,649,
+                      673,703,727]
+#rpw_suggested_freqs_idx=[ 437,441,442,448,453,458,465,470,
+#                         477,482,493,499,511,519,526,533,
+#                         538,545,552,559,566,600,
+#                         612,678,696,#,576,588,592,649,629,656,673
+#                         703,716,727,734,741,750,755]
 rpw_idx_hfr=436
 rpw_suggested_indexes = np.array(rpw_suggested_freqs_idx)-rpw_idx_hfr
 
 #display_freqs=[0,100,500,1000,2500,5000,10000,15000]
-display_freqs=[0,100,500,1000,2000,4000,8000,12000,16000]
+display_freqs=[0,100,500,1000,2000,3500,6000,8000,100000,12000,16000]
 
 
 
@@ -91,21 +94,44 @@ def stix_get_all_bkg_files(path,verbose=True):
                 continue
             #append the file name to the list
             obstime = file.split("_")[3].split("-")[0]
-            date = dt.datetime.strptime(obstime,fits_date_fmt)
-            entry= "["+date.strftime(simple_date_fmt)+"] "+file
+            date = dt.datetime.strptime(obstime,"%Y%m%dT%H%M%S")
+            entry= "["+date.strftime("%Y-%m-%d")+"] "+file
             filelist.append(entry)
 
 
     #print all the file names
     filelist.sort()
-    print(len(filelist),"BKG file found:")
+    print(len(filelist),"BKG files found:")
     for name in filelist:
         print(name)
 
-def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt=simple_date_fmt,suggestions=1):
+def stix_get_all_aux_files(path,verbose=True):
+
+    filelist = []
+
+    for root, dirs, files in os.walk(path):
+        if("_BKG" in root):
+            continue
+        for file in files:
+            if(not ".fits" in file or not "aux" in file):
+                continue
+            #append the file name to the list
+            obstime = file.split("_")[3].split("-")[0]
+            date = dt.datetime.strptime(obstime,"%Y%m%d")
+            entry= "["+date.strftime("%Y-%m-%d")+"] "+file
+            filelist.append(entry)
+
+
+    #print all the file names
+    filelist.sort()
+    print(len(filelist),"AUX files found:")
+    for name in filelist:
+        print(name)
+
+def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S",suggestions=1):
     date = dt.datetime.strptime(date,dt_fmt)
     filelist = {}
-    #file_dt_fmt="%Y%m%dT%H%M%S"
+    file_dt_fmt="%Y%m%dT%H%M%S"
 
     for root, dirs, files in os.walk(rootpath):
         if(not"_BKG" in root):
@@ -115,11 +141,11 @@ def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt=simple_date_fmt,suggesti
                 continue
             #append the file name to the list
             obstime = file.split("_")[3].split("-")[0]
-            dateobs = dt.datetime.strptime(obstime,fits_date_fmt)
-            
+            dateobs = dt.datetime.strptime(obstime,file_dt_fmt)
+
             tdelta = (date-dateobs).days
             filelist[os.path.join(root,file)] = np.abs(tdelta)
-            
+
     sort_files = sorted(filelist.items(),key=lambda x:x[1])
     sort_files = sort_files[:suggestions]
     for i in range(suggestions):
@@ -129,12 +155,12 @@ def stix_suggest_bkg_file_for_date(date,rootpath,dt_fmt=simple_date_fmt,suggesti
 def stix_suggest_bkg_file_for_file(file,rootpath,suggestions=1):
     obstime = file.split("_")[3].split("-")[0]
     fmtd = "%Y%m%dT%H%M%S"
-    return stix_suggest_bkg_file(obstime,rootpath,dt_fmt=fits_date_fmt,suggestions=suggestions)
+    return stix_suggest_bkg_file(obstime,rootpath,dt_fmt=fmtd,suggestions=suggestions)
 
 
 
-def stix_data_in_interval_exists(date_range,rootpath,dt_fmt=numeric_date_fmt):
-    
+def stix_data_in_interval_exists(date_range,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S"):
+
     date_range = [dt.datetime.strptime(x,dt_fmt) for x in date_range]
     filelist = {
         "totally":[],
@@ -144,36 +170,47 @@ def stix_data_in_interval_exists(date_range,rootpath,dt_fmt=numeric_date_fmt):
         if("_BKG" in root):
             continue
         for file in files:
-            if(not ".fits" in file):
+            if(not ".fits" in file or "aux" in file):
                 continue
             #append the file name to the list
-            
+            #print(file)
             obstime_1 = file.split("_")[3].split("-")[0]
             obstime_2 = file.split("_")[3].split("-")[1]
-            dateinterv = [dt.datetime.strptime(x,fits_date_fmt) for x in [obstime_1,obstime_2]]
-            
+
+            dateinterv = [dt.datetime.strptime(x,"%Y%m%dT%H%M%S") for x in [obstime_1,obstime_2]]
+
             date1_in_range = date_range[0]>=dateinterv[0] and date_range[0]<=dateinterv[1]
             date2_in_range = date_range[1]>=dateinterv[0] and date_range[1]<=dateinterv[1]
-            
-            
+
+            interv_in_range = date_range[0]<=dateinterv[0] and date_range[1]>=dateinterv[1]
+
+            fileroot=(root+"/"+file).replace(rootpath,"PATH + ")
+
             if(date1_in_range and date2_in_range):
                 filelist["totally"].append(file)
-                print(" Totally contained in file:\n  PATH +",
-                      file,
+                print(" Totally contained in file:\n  ",
+                      fileroot,
                       "\n  File from ",dt.datetime.strftime(dateinterv[0],dt_fmt)," to ",
                       dt.datetime.strftime(dateinterv[1],dt_fmt),"\n")
             elif(date1_in_range or date2_in_range):
                 filelist["partially"].append(file)
-                print(" Partially contained in file:\n  PATH +",
-                      file,
+                print(" Partially contained in file:\n  ",
+                      fileroot,
                       "\n  File from ",dt.datetime.strftime(dateinterv[0],dt_fmt)," to ",
                       dt.datetime.strftime(dateinterv[1],dt_fmt),"\n")
+            elif(interv_in_range):
+                filelist["partially"].append(file)
+                print(" Partially contained in file:\n  ",
+                      fileroot,
+                      "\n  File from ",dt.datetime.strftime(dateinterv[0],dt_fmt)," to ",
+                      dt.datetime.strftime(dateinterv[1],dt_fmt),"\n")
+
     if(len(filelist["totally"])==0 and len(filelist["partially"])==0):
         print("No files containing totally or partially the provided time interval.")
-            
+
     return filelist
- 
-    
+
+
 def stix_check_interval_availability(date_range,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S"):
     print("**STIX Science files availability:")
     L1_check = stix_data_in_interval_exists(date_range,rootpath=rootpath,dt_fmt=dt_fmt)
@@ -181,14 +218,14 @@ def stix_check_interval_availability(date_range,rootpath,dt_fmt="%Y-%m-%d %H:%M:
     BKG_check = stix_suggest_bkg_file_for_date(date_range[0],rootpath=rootpath,dt_fmt=dt_fmt)
     return [L1_check,BKG_check]
 
- 
-    
-    
+
+
+
 def rpw_check_date_availability(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S"):
     date = dt.datetime.strptime(date,dt_fmt)
     filelist = []
     simple_dt_fmt="%Y%m%d"
-    
+
     print("**RPW Science files availability:")
     for root, dirs, files in os.walk(rootpath):
         for file in files:
@@ -198,14 +235,14 @@ def rpw_check_date_availability(date,rootpath,dt_fmt="%Y-%m-%d %H:%M:%S"):
             obstime = file.split("_")[3]
 
             if(date.strftime(simple_dt_fmt)==obstime):
-                
+
                 print("  Contained in file PATH + ",file)
                 filelist.append(file)
     return filelist
 
 
 
-def check_combined_availability(date_range,rootpath_stix,rootpath_rpw,dt_fmt=numeric_date_fmt):
+def check_combined_availability(date_range,rootpath_stix,rootpath_rpw,dt_fmt="%Y-%m-%d %H:%M:%S"):
     stix_info = stix_check_interval_availability(date_range,rootpath_stix,dt_fmt)
     rpw_info=None
     if(date_range[0].split()[0]==date_range[1].split()[0]):
@@ -214,10 +251,11 @@ def check_combined_availability(date_range,rootpath_stix,rootpath_rpw,dt_fmt=num
         print("[!] date range includes two different days, two RPW files might be required")
         rpw_info = [rpw_check_date_availability(date_range[0],rootpath_rpw,dt_fmt),
                    rpw_check_date_availability(date_range[1],rootpath_rpw,dt_fmt)]
-    
+
 
     return {"STIX":stix_info,"RPW":rpw_info}
 
+#AUX functions
 
 
 # SOLAR EVENTS CLASS
@@ -483,6 +521,8 @@ def rpw_create_PSD(data,freq_range=None,date_range=None,freq_col=0,proposed_inde
     z_axis= data["voltage"][:,date_idx]
     z_axis = z_axis[freq_idx,:]
     
+    mn_bkg=None
+    
 # BKG subtraction (approx) if needed
     if rpw_bkg_interval :
         print("  Creating mean bkg from ",rpw_bkg_interval[0]," to ",rpw_bkg_interval[1],"...")
@@ -495,6 +535,7 @@ def rpw_create_PSD(data,freq_range=None,date_range=None,freq_col=0,proposed_inde
         mn_bkg = mn_bkg.clip(0,np.inf)
         
         z_axis=np.clip(z_axis-mn_bkg,1e-16,np.inf)
+        
         print("  bkg done.")
 
     
@@ -506,12 +547,46 @@ def rpw_create_PSD(data,freq_range=None,date_range=None,freq_col=0,proposed_inde
         "time":t_axis,
         "frequency":freq_axis,
         "v":z_axis,
-        "df":dfreq
+        "df":dfreq,
+        "bkg":mn_bkg
     }
     
     return return_dict
 # plot PRW psd object
-def rpw_plot_psd(psd,logscale=True,colorbar=True,cmap="jet",t_format="%H:%M:%S",
+#def rpw_plot_psd(psd,logscale=True,colorbar=True,cmap="jet",t_format="%H:%M:%S",ax=None,
+ #           axis_fontsize=13,xlabel=True,frequency_range=None):
+
+  #  t,f,z=psd["time"],psd["frequency"],psd["v"]
+ #   if(logscale):
+  #      z = np.log10(z)
+
+
+#    ax = ax if ax else plt.gca()
+#    ax.xaxis.set_major_formatter(mdates.DateFormatter(t_format))
+
+    #mn = np.mean(z[:,0:1500],axis=1)
+    #bckg_ = np.array([mn for i in range(np.shape(z)[1])]).T
+    #z_=np.clip(z-bckg_,1e-16,np.inf)
+
+#    cm= ax.pcolormesh(t,f,z,shading="auto",cmap=cmap)
+#    if(colorbar):
+#        plt.colorbar(cm,label="$Log_{10}$ PSD (V)")
+#    ax.set_yscale('log')
+#    ax.set_yticks([], minor=True)
+#    ax.set_yticks([x  for x in display_freqs if np.logical_and(x<=f[-1],x>=f[0])])
+    #ax.get_yaxis().set_major_formatter(ticker.ScalarFormatter())
+    #plt.ticklabel_format(axis='y', style='sci',scilimits=(0,0))
+#    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y,pos: ('{{:.{:1d}f}}'.format(int(np.maximum(-np.log10(y/1000.),1)))).format(y/1000.)))
+#    
+#    if(frequency_range):
+#        plt.ylim(max(frequency_range[0],np.min(f)),min(frequency_range[1],np.max(f)))     
+#    if(xlabel):
+#        plt.xlabel("start time: "+t[0].strftime(std_date_fmt),fontsize=axis_fontsize)
+#    plt.ylabel("Frequency [MHz]",fontsize=axis_fontsize)
+#    
+#    return ax
+
+def rpw_plot_psd(psd,logscale=True,colorbar=True,cmap="jet",t_format="%H:%M",ax=None,date_range=None,
             axis_fontsize=13,xlabel=True,frequency_range=None):
 
     t,f,z=psd["time"],psd["frequency"],psd["v"]
@@ -519,37 +594,107 @@ def rpw_plot_psd(psd,logscale=True,colorbar=True,cmap="jet",t_format="%H:%M:%S",
         z = np.log10(z)
 
 
-    ax = plt.gca()
+    ax = ax if ax else plt.gca()
     ax.xaxis.set_major_formatter(mdates.DateFormatter(t_format))
+    
+    if(date_range):
+        dt_fmt_ = "%d-%b-%Y %H:%M:%S"
+        date_range=[datetime.strptime(x,dt_fmt_) for x in date_range]
+        plt.xlim(*date_range)
 
-    #mn = np.mean(z[:,0:1500],axis=1)
-    #bckg_ = np.array([mn for i in range(np.shape(z)[1])]).T
-    #z_=np.clip(z-bckg_,1e-16,np.inf)
-
-    cm= plt.pcolormesh(t,f,z,shading="auto",cmap=cmap)
+    cm= ax.pcolormesh(t,f,z,shading="auto",cmap=cmap)
     if(colorbar):
         plt.colorbar(cm,label="$Log_{10}$ PSD (V)")
 
-    #plt.axvline(t[np.argmax(z[-1,:])],c="w")
     
     
     ax.set_yscale('log')
     ax.set_yticks([], minor=True)
     ax.set_yticks([x  for x in display_freqs if np.logical_and(x<=f[-1],x>=f[0])])
-    #ax.get_yaxis().set_major_formatter(ticker.ScalarFormatter())
-    #plt.ticklabel_format(axis='y', style='sci',scilimits=(0,0))
     ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y,pos: ('{{:.{:1d}f}}'.format(int(np.maximum(-np.log10(y/1000.),1)))).format(y/1000.)))
     
     if(frequency_range):
         plt.ylim(max(frequency_range[0],np.min(f)),min(frequency_range[1],np.max(f)))
     
-    0
+    
     if(xlabel):
         plt.xlabel("start time: "+t[0].strftime(std_date_fmt),fontsize=axis_fontsize)
     plt.ylabel("Frequency [MHz]",fontsize=axis_fontsize)
+    
+    return ax
+# plot rpw curves
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
+
+def rpw_plot_curves(rpw_psd,savename=None,
+                      dt_fmt=std_date_fmt,title=None,ax=None,
+                      date_range=None,legend=True,fill_nan=True,lcolor=None,lw=1,ls="-",
+                      freqs=None,ylogscale=True,smoothing_pts=None,bias_multiplier=1):
+    
+    color_list = ["red","dodgerblue","limegreen","orange","cyan","magenta"]
+
+    t,f,z=rpw_psd["time"],rpw_psd["frequency"],rpw_psd["v"]
+    #if(logscale):
+    #    z = np.log10(z)
 
 
+    ax = ax if ax else plt.gca()
+    
+    
+ 
+    myFmt = mdates.DateFormatter(dt_fmt)
+    
+    #if(fill_nan):
+    #    cts_data=np.nan_to_num(cts_data,nan=0)
+    
+    plot_groups = []
+    
+    for sel_freq in freqs:
+        idx_close = np.argmin(np.abs(rpw_psd["frequency"]-sel_freq))
+        close_freq = rpw_psd["frequency"][idx_close]
+        close_intensity = z[idx_close,:]
+        if(smoothing_pts):
+            #moving average smoothing
+            close_intensity = smooth(close_intensity,smoothing_pts)
+        
+        
+        plot_groups.append([close_freq,close_intensity])
+        
+        
+    if not lcolor:
+        lcolor=color_list[:len(plot_groups)]
+    elif len(lcolor)<len(plot_groups):
+        print("[!] color list length do not match the number of energy bins plotted. Using default instead")
+        lcolor=color_list[:len(plot_groups)]
 
+    lims = [0,0]
+    for g in range(len(plot_groups)):
+        pg = plot_groups[g]
+        
+        if(bias_multiplier):
+            plot_y = pg[1]*bias_multiplier**(len(plot_groups)-g)
+            ax.plot(t,plot_y,label="{} kHz".format(int(pg[0])),c=lcolor[g],lw=lw,ls=ls)
+            ax.plot([t[0],t[-1]],[np.min(plot_y),np.min(plot_y)],c=lcolor[g],lw=0.5,ls=ls)
+            if(np.max(plot_y)>lims[1] or lims[1]==0):
+                lims[1] = 2*np.max(plot_y)
+            if(np.min(plot_y)<lims[0]or lims[0]==0):
+                lims[0] = 5*np.min(plot_y)
+        else:
+            
+            ax.plot(t,pg[1],label="{} kHz".format(int(pg[0])),c=lcolor[g],lw=lw,ls=ls)
+            if(np.max(pg[1])>lims[1]or lims[1]==0):
+                lims[1] = 2*np.max(pg[1])
+            if(np.min(pg[1])<lims[0]or lims[0]==0):
+                lims[0] = 5*np.min(pg[1])
+    if(legend):
+        plt.legend(loc=2)
+    if(ylogscale):
+        plt.yscale("log")
+    plt.ylim(lims[0],lims[1])
+    return ax
+     
  # STIX data read
 
 def stix_create_counts(pathfile, is_bkg=False,time_arr=None,correct_flight_time=False):
@@ -627,11 +772,16 @@ def stix_remove_bkg_counts(pathfile,pathbkg,correct_flight_time = False):
     data_BKG = stix_create_counts(pathbkg,is_bkg=True, time_arr=data_L1["time"],correct_flight_time =correct_flight_time )
     
     #subtract background 
-    data_counts_per_sec_nobkg = data_L1["counts_per_sec"]-data_BKG["counts_per_sec"] 
+    data_counts_per_sec_nobkg = data_L1["counts_per_sec"]-data_BKG["counts_per_sec"]
+    
+    #create bkg spectrum
+    bkg_count_spec=data_BKG["counts_per_sec"][0]
+    
     
     # replace ctc/secinfo with corrected info
     return_dict = data_L1.copy()
     return_dict["counts_per_sec"] = data_counts_per_sec_nobkg
+    return_dict["background"]=bkg_count_spec
     
     return return_dict
 
@@ -699,8 +849,8 @@ def stix_combine_counts(allcounts):
 
 def stix_plot_spectrogram(counts_dict,savename=None,colorbar=True,
                       xfmt=" %H:%M",title=None,cmap="jet",fill_nan=True,
-                      date_range=None,energy_range=None,x_axis=False,
-                      logscale=True,**kwargs):
+                      date_range=None,energy_range=None,x_axis=False,ax=None,
+                      logscale=True,ylogscale=False,**kwargs):
     # date_ranges param is used for visualizing delimiters for date range selection of the 
     # background and sample pieces (interactive plotting)
     # date_ranges = [[bkg_initial, bkg_final],[smpl_initial, smpl_final]]
@@ -709,7 +859,7 @@ def stix_plot_spectrogram(counts_dict,savename=None,colorbar=True,
     cts_per_sec = counts_dict["counts_per_sec"]
     energies = counts_dict ["energy_bins"]
     mean_e = counts_dict["mean_energy"]
-    ax = plt.gca()
+    ax = ax if ax else plt.gca()
     
     
     myFmt = mdates.DateFormatter(xfmt)
@@ -733,16 +883,46 @@ def stix_plot_spectrogram(counts_dict,savename=None,colorbar=True,
         dt_fmt_ = "%d-%b-%Y %H:%M:%S"
         date_range=[datetime.strptime(x,dt_fmt_) for x in date_range]
         plt.xlim(*date_range)
+    if(ylogscale):
+        plt.yscale('log')
     #return fig, axes
     if(savename):
         plt.savefig(savename,bbox_inch="tight")
     
+    
     return ax
+
+
+def stix_plot_bkg(l1_counts,ax=None):
+    
+    ax= ax if ax else plt.gca()
+    if not"background" in l1_counts.keys():
+        print("This L1 counts object has no removed background.")
+        return ax
+    
+    energies = l1_counts["mean_energy"]
+    bkg_counts = l1_counts["background"]
+    ax.plot(energies,bkg_counts)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel("Energy[kev]")
+    ax.set_ylabel("Counts per second")
+    ax.axvline(31,c="r",ls="--")
+    ax.axvline(81,c="r",ls="--",label="Callibration lines \n  31 and 81 kev")
+    ax.grid()
+    ax.legend(fontsize=12)
+
     
 def stix_plot_counts(counts_dict,savename=None,
-                      dt_fmt=std_date_fmt,title=None,e_range=None,
-                      date_range=None,legend=True,fill_nan=True,lcolor="orange",lw=1,ls="-",
+                      dt_fmt=std_date_fmt,title=None,e_range=None,ax=None,
+                      date_range=None,legend=True,fill_nan=True,lcolor=None,lw=1,ls="-",
                       integrate_bins=None,zlogscale=True,ylogscale=True):
+    
+    color_list = ["red","blue","green","orange","cyan","magenta"]
+
+        
+    
+    
     #get data   
     plot_time = counts_dict["time"]
     energies = counts_dict ["energy_bins"]
@@ -798,23 +978,133 @@ def stix_plot_counts(counts_dict,savename=None,
         for e in range(len(energies)):
             plot_groups.append([cts_per_sec[:,e],[energies[e]["e_low"],energies[e]["e_high"]],mean_e[e]])
         
-
-
+    if not lcolor:
+        lcolor=color_list[:len(plot_groups)]
+    elif len(lcolor)<len(plot_groups):
+        print("[!] color list length do not match the number of energy bins plotted. Using default instead")
+        lcolor=color_list[:len(plot_groups)]
     
-    ax = plt.gca()
+    ax = ax if ax else plt.gca()
     #ax.xaxis.set_major_formatter(myFmt)
     
-    for pg in plot_groups:
-        ax.plot(plot_time,pg[0]+1,label="{} - {} keV".format(int(pg[1][0]),int(pg[1][1])),c=lcolor,lw=lw,ls=ls)
+    lims = [10,100]
+    for g in range(len(plot_groups)):
+        pg = plot_groups[g]
+        
+        ax.plot(plot_time,pg[0]+1,label="{} - {} keV".format(int(pg[1][0]),int(pg[1][1])),c=lcolor[g],lw=lw,ls=ls)
+        if(np.max(pg[0]+1)>lims[1]):
+            lims[1] = 2*np.max(pg[0]+1)
     if(legend):
         plt.legend()
     if(ylogscale):
         #plt.ylim(0.5,np.max(cts_per_sec))
         plt.yscale("log")
+    plt.ylim(lims[0],lims[1])
+    return ax
      
 
     
 # Combined views
+def stix_rpw_combinedQuickLook(l1_cts,rpw_psd,energy_range=[4,28],frequency_range=[400,17000],energy_bins=[[4,12],[16,28]],
+                               frequencies=[500,3500,13000],stix_cmap="bone",rpw_cmap="bone",cmap=None,date_fmt="%H:%M",
+                               date_range=None,stix_ylogscale=False,smoothing_points=5,stix_lcolor=None,rpw_lcolor=None,rpw_units="watts",
+                               figsize=(15,7),mode="overlay",curve_overlay="both",rpw_plot_bias=False,curve_lw=2,fontsize=13,savename=None):
+    #font = { #'family' : 'normal',
+        #'weight' : 'normal',
+    #    'size'   : 15}
+    rpw_psd_cp=rpw_psd.copy()
+    rpw_ylabel = "I "
+    if rpw_units=="watts":
+        rpw_ylabel+="[W m$^{-2}$ Hz$^{-1}$]"
+    elif rpw_units=="sfu":
+        rpw_psd_cp["v"]= rpw_psd_cp["v"]/1e-22
+        rpw_ylabel += " [SFU]"
+        
+        
+    
+    plt.rcParams.update({'font.size': fontsize})
+
+    # palette for spectrograms
+    stix_cmap = cmap if cmap else stix_cmap
+    rpw_cmap = cmap if cmap else rpw_cmap
+    
+    
+     #set date range(str): if not provided, then, use max possible
+    drange=None
+    
+    if date_range:
+        drange = date_range
+    else:
+        drange = [np.max([l1_cts["time"][0],rpw_psd_cp["time"][0]]),
+              np.min([l1_cts["time"][-1],rpw_psd_cp["time"][-1]])]
+        drange = [datetime.strftime(x,std_date_fmt) for x in drange]
+    
+    xlims =[datetime.strptime(x,std_date_fmt) for x in drange]
+    
+    myFmt = mdates.DateFormatter(date_fmt)
+    fig=plt.figure(figsize=figsize,dpi=250)
+    
+    
+    if(mode in ["overlay","spectrograms"]):
+        #CHANGe
+        ax1 = fig.add_subplot(211)
+        rpw_plot_psd(rpw_psd_cp,xlabel=False,frequency_range=frequency_range,date_range=drange,
+                             cmap=rpw_cmap,t_format="%H:%M",ax=ax1)
+        if(curve_overlay in ["both","rpw"] and mode=="overlay"):
+            
+            ax1b = ax1.twinx()
+            
+            #CHANGE
+            multip=round(5*10**np.interp(len(frequencies),[2,7],[3.5,2]),-2) if rpw_plot_bias else None
+            rpw_plot_curves(rpw_psd_cp,freqs=frequencies,ax=ax1b,lw=curve_lw,smoothing_pts=smoothing_points,
+                            bias_multiplier=multip)
+            ax1b.get_yaxis().set_ticks([])
+            ax1b.set_yticklabels([])
+        ax1.invert_yaxis()
+        ax2 = fig.add_subplot(212)
+        stix_plot_spectrogram(l1_cts,ax=ax2,cmap=stix_cmap,energy_range=energy_range,date_range=drange)
+        if(stix_ylogscale):
+            plt.yscale('log')
+        if(curve_overlay in ["both","stix"] and mode=="overlay"):
+            ax3=ax2.twinx()
+            stix_plot_counts(l1_cts,integrate_bins=energy_bins,
+                                 lcolor=stix_lcolor,ax=ax3,lw=curve_lw)
+    elif(mode=="curves"):
+        stix_rows=max(1,int(len(frequencies)/2)-1)
+        rows = stix_rows+len(frequencies)
+        ax0 = plt.subplot2grid((rows, 1), (rows-stix_rows, 0), rowspan=stix_rows)
+        stix_plot_counts(l1_cts,integrate_bins=energy_bins,
+                                 lcolor=stix_lcolor,ax=ax0,lw=curve_lw,date_range=drange)
+        ax0.xaxis.set_major_formatter(myFmt)
+        ax0.grid()
+        ax0.set_xlim(xlims)
+        
+        freq_axs=[]
+        for i in range(len(frequencies)):
+            freq_axs.append(plt.subplot2grid((rows, 1), (i, 0)))
+            rpw_plot_curves(rpw_psd_cp,freqs=[frequencies[i]],ax=freq_axs[-1],lw=curve_lw,smoothing_pts=smoothing_points,lcolor=["k"],
+                            bias_multiplier=None)
+            if(i==0):
+                freq_axs[-1].xaxis.tick_top()
+                
+                freq_axs[-1].xaxis.set_major_formatter(myFmt)
+                freq_axs[-1].set_ylabel(rpw_ylabel)
+                
+            else:
+                freq_axs[-1].set_xticklabels([])
+                
+            freq_axs[-1].set_xlim(xlims)
+            freq_axs[-1].grid()
+            
+            
+
+            #plt.tight_layout()
+            #plt.savefig('grid_figure.pdf')
+    #plt.xlim()
+    return fig
+
+#["red","dodgerblue","limegreen","magenta"]
+
 
 def rpw_stix_combined_view(stx_cts,rpw_psd,date_range=None,dt_fmt=std_date_fmt,figsize=[15,9],
                           rpw_freq_range=None,stix_energy_range=None,invert_rpw_axis=True,markers={},markerwidth=1.5,
@@ -1063,7 +1353,7 @@ def rpw_plot_fit_results(fit_results,rpw_psd,cmap="jet",fit_limits=False):
             lbl = "{} MHz".format(round(flist[i]/1000.,2))
             if(len(flist)>20 and i%3!=0 and i!=len(flist)-1):
                 lbl=None
-            plt.errorbar(ctime,int(flist[i]),xerr=times_sigma1,yerr=f_sigma,color=rgba,
+            plt.errorbar(ctime,int(flist[i]),xerr=np.abs(times_sigma1),yerr=np.abs(f_sigma),color=rgba,
                          label=lbl,marker="o",markersize=3)
     plt.legend(ncol=3,fontsize=9)
     plt.xlabel("Date")
@@ -1263,7 +1553,7 @@ def convert_c_to_roSec(vels):
     return [(v*speed_c_kms)/km_per_Rs for v in vels]
 
 
-def rpw_estimate_beam_velocity(freq_drifts,density_model,r_interv=[0.1,300],n_iter=5,c=0.01,npoints=1000,only_neg_drifts=True):
+def rpw_estimate_beam_velocity(freq_drifts,density_model,r_interv=[0.1,300],n_iter=5,c=0.01,npoints=1000,weight_v_error=1.,only_neg_drifts=True):
     freqs = freq_drifts["conv_frequencies"]
     freqs_low_bound = freqs[:-1]
     freqs = (freqs[1:]+freqs[:-1])/2.
@@ -1297,7 +1587,7 @@ def rpw_estimate_beam_velocity(freq_drifts,density_model,r_interv=[0.1,300],n_it
     err_dfdn = dfdn[:]*(freq_drifts["sigma_f"][:len(freqs)]/freqs[:])*np.sqrt(1+(1/36))
     
     dndr=dndr_from_r(rads)
-    err_dndr = dndr[:]*(err_ne[:]/n_e[:])*np.sqrt(1+(1/(2*3.3e5+4*4.1e6+6*8.0e7)**2))
+    err_dndr = np.abs(dndr[:]*(err_ne[:]/n_e[:])*np.sqrt(1+(1/(2*3.3e5+4*4.1e6+6*8.0e7)**2)))
     
     drdt = []
     drdt_err=[]
@@ -1309,7 +1599,7 @@ def rpw_estimate_beam_velocity(freq_drifts,density_model,r_interv=[0.1,300],n_it
         err_v = v_trig*np.sqrt((freq_drifts["sigma_dfdt"][i]/dfdt[i])**2 + (err_dfdn[i]/dfdn[i])**2 + (err_dndr[i]/dndr[i])**2)
         
         drdt.append( v_trig )
-        drdt_err.append( err_v)
+        drdt_err.append( err_v*weight_v_error)
         
         
     return_dict = {
@@ -1421,7 +1711,7 @@ def rpw_plot_typeIII_diagnostics(rpw_psd,fit_results,freq_drifts,trigger_velocit
             err_vels[f_i]=0
         rgba = cmap((f_i+1)/len(trigger_velocity["freq_average"]))
         ax.scatter(trigger_velocity["delays"][f_i],vels[f_i],color=rgba,marker="o",s=20)
-        ax.errorbar(trigger_velocity["delays"][f_i],vels[f_i],xerr=terr[f_i]+delta_t[f_i],yerr=err_vels[f_i],c=rgba,markersize=2)
+        ax.errorbar(trigger_velocity["delays"][f_i],vels[f_i],xerr=terr[f_i]+delta_t[f_i],yerr=np.abs(err_vels[f_i]),c=rgba,markersize=2)
     
     
     ax.xaxis.tick_top()
@@ -1442,7 +1732,7 @@ def rpw_plot_typeIII_diagnostics(rpw_psd,fit_results,freq_drifts,trigger_velocit
     for f_i in range(len(trigger_velocity["freq_average"])):
         rgba = cmap((f_i+1)/len(trigger_velocity["freq_average"]))
         ax2.scatter(timeax[f_i],trigger_velocity["n_e"][f_i],color=rgba,marker="o",s=20)
-        ax2.errorbar(timeax[f_i],trigger_velocity["n_e"][f_i],yerr=ne_err[f_i],xerr=terr_dt[f_i]+delta_t_dt[f_i],c=rgba)
+        ax2.errorbar(timeax[f_i],trigger_velocity["n_e"][f_i],yerr=np.abs(ne_err[f_i]),xerr=terr_dt[f_i]+delta_t_dt[f_i],c=rgba)
     ax2.set_yscale("log")
     ax2.set_ylabel("$n_e$ [cm$^{-3}$]",fontsize=13)
     ax2.set_xticks([])
@@ -1452,7 +1742,7 @@ def rpw_plot_typeIII_diagnostics(rpw_psd,fit_results,freq_drifts,trigger_velocit
     for f_i in range(len(trigger_velocity["freq_average"])):
         rgba = cmap((f_i+1)/len(trigger_velocity["freq_average"]))
         plt.scatter(timeax[f_i],trigger_velocity["r"][f_i],color=rgba,marker="o",s=20,label="{} kHz".format(int(trigger_velocity["frequencies"][f_i])))
-        plt.errorbar(timeax[f_i],trigger_velocity["r"][f_i],xerr=terr_dt[f_i]+delta_t_dt[f_i],yerr=r_err[f_i],c=rgba,markersize=2)
+        plt.errorbar(timeax[f_i],trigger_velocity["r"][f_i],xerr=terr_dt[f_i]+delta_t_dt[f_i],yerr=np.abs(r_err[f_i]),c=rgba,markersize=2)
     plt.xlabel("Time (UT)  $t_0$ = {}".format(dt.datetime.strftime(t0,std_date_fmt)),fontsize=13)
     plt.ylabel("r $[R_o]$",fontsize=13)
     plt.xticks()
@@ -1471,7 +1761,7 @@ def rpw_plot_typeIII_diagnostics(rpw_psd,fit_results,freq_drifts,trigger_velocit
         r_err_AU = r_err[f_i]*(1/Rs_per_AU)
         if(vels[f_i]<0):
             err_vels[f_i]=0
-        ax.errorbar(r_AU,vels[f_i],yerr=err_vels[f_i],xerr=r_err_AU,c=rgba,marker="o",markersize=2)
+        ax.errorbar(r_AU,vels[f_i],yerr=np.abs(err_vels[f_i]),xerr=np.abs(r_err_AU),c=rgba,marker="o",markersize=2)
         
         ax.scatter(r_AU,vels[f_i],color=rgba,marker="o",s=20)
     plt.yscale("log")
